@@ -1,0 +1,18 @@
+{
+  "nodes": [
+    {
+      "filename": "file1.py",
+      "snippet": "def function1():\n    pass"
+    },
+    {
+      "filename": "file2.py",
+      "snippet": "def function2():\n    pass"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file1.py",
+      "target": "file2.py"
+    }
+  ]
+}
