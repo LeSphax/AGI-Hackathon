@@ -1,0 +1,124 @@
+{
+  "nodes": [
+    {
+      "filename": "models/models/trial.js",
+      "source_id": null,
+      "id": 0,
+      "line_number": 20,
+      "content": "module.exports = function(sequelize, DataTypes) {\n  const attributes = {\n    id: {type: DataTypes.UUID, primaryKey: true},\n    graduatedAt: {type: DataTypes.DATE},\n    canceledAt: {type: DataTypes.DATE},\n    archivedAt: {type: DataTypes.DATE},\n    taskTypes: {type: DataTypes.JSONB},\n    maxRecordCount: {type: DataTypes.INTEGER},\n    maxRecordPortion: {type: DataTypes.FLOAT},\n    maxRecordCreatedAt: {type: DataTypes.DATE},\n    visitConceptId: {type: DataTypes.STRING},\n    graduatedTrialRunId: {type: DataTypes.UUID},\n    customStructuringConceptGroupId: {type: DataTypes.UUID},\n    isTraining: {type: DataTypes.BOOLEAN}\n  };\n\n  return sequelizeHelper.define(sequelize, 'Trial', attributes, {\n    classMethods: {\n      initialize(models) {\n        sequelizeHelper.addRelations(this, models, _.union(\n          jobEntity.getRelations(models),\n          [\n            ['belongsTo', models.CustomStructuringConceptGroup],\n            ['belongsTo', models.Concept, {as: 'VisitConcept', foreignKey: 'visitConceptId'}],\n            ['belongsTo', models.TrialRun, {as: 'GraduatedTrialRun', foreignKey: 'graduatedTrialRunId'}],\n            ['hasMany', models.TrialRun]\n          ]\n        ));\n\n        sequelizeHelper.addScopes(this, models, [\n          ['api', {\n            include: [\n              {model: models.TrialRun}\n            ]\n          }]\n        ]);\n      }\n    },\n    instanceMethods: {\n      getJobStatus: jobEntity.getJobStatus,\n\n      /**\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      queueGenerateTasksJob({transaction} = {}) {\n        const models = this.$contextModels;\n        return models.jobs.scheduleJob(\n          JobTypes.TRIALING_GENERATE_TASKS,\n          {trialId: this.id},\n          this.id,\n          models.Trial.tableName,\n          {transaction}\n        );\n      },\n\n      /**\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      queueGraduateTrialJob({transaction} = {}) {\n        const models = this.$contextModels;\n        return models.jobs.scheduleJob(\n          JobTypes.TRIALING_GRADUATE_TRIAL,\n          {trialId: this.id},\n          this.id,\n          models.Trial.tableName,\n          {transaction}\n        );\n      },\n\n      /**\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      queueCancelTrialJob({transaction} = {}) {\n        const models = this.$contextModels;\n        return models.jobs.scheduleJob(\n          JobTypes.TRIALING_CANCEL_TRIAL,\n          {trialId: this.id},\n          this.id,\n          models.Trial.tableName,\n          {transaction}\n        );\n      },\n\n      /**\n       * @param {string[]} recordIs\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      async copyClinicalDataForTrial(recordIds, {transaction} = {}) {\n        const models = this.$contextModels;\n        const changeSetId = getClsChangeSetId();\n        const botName = 'trialing.copy_clinical_data_for_trial';\n\n        const result = await models.sequelize.query(\n          `SELECT trialing.copy_clinical_data_for_trial(:trialId, '{${recordIds.join(',')}}', :changeSetId, :botName)`,\n          {\n            type: models.sequelize.QueryTypes.SELECT,\n            replacements: {\n              trialId: this.id,\n              changeSetId,\n              botName\n            },\n            transaction\n          }\n        );\n\n        return _.get(_.first(result), 'copy_clinical_data_for_trial');\n      },\n\n      /**\n       * @param {string[]} recordIds\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      async copyVisitsAndVisitExcerptsToProcess(recordId, {transaction} = {}) {\n        const models = this.$contextModels;\n        const changeSetId = getClsChangeSetId();\n        const botName = 'trialing.copy_visits_and_visit_excerpts_to_process';\n\n        const result = await models.sequelize.query(\n          'SELECT trialing.copy_visits_and_visit_excerpts_to_process(:trialId, :recordId, :changeSetId, :botName)',\n          {\n            type: models.sequelize.QueryTypes.SELECT,\n            replacements: {\n              trialId: this.id,\n              recordId: recordId,\n              changeSetId,\n              botName\n            },\n            transaction\n          }\n        );\n        return _.get(_.first(result), 'copy_visits_and_visit_excerpts_to_process');\n      },\n\n      /**\n       * @param {string[]} recordIds\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      async copyDocumentsAndSectionsToProcess(recordId, {transaction} = {}) {\n        const models = this.$contextModels;\n        const changeSetId = getClsChangeSetId();\n        const botName = 'trialing.copy_documents_and_sections_to_process';\n\n        const result = await models.sequelize.query(\n          'SELECT trialing.copy_documents_and_sections_to_process(:trialId, :recordId, :changeSetId, :botName)',\n          {\n            type: models.sequelize.QueryTypes.SELECT,\n            replacements: {\n              trialId: this.id,\n              recordId: recordId,\n              changeSetId,\n              botName\n            },\n            transaction\n          }\n        );\n        return _.get(_.first(result), 'copy_documents_and_sections_to_process');\n      },\n\n      /**\n       * @param {string} recordId\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      async copyVisitItemExcerptsToProcess(recordId, {transaction} = {}) {\n        const models = this.$contextModels;\n        const changeSetId = getClsChangeSetId();\n        const botName = 'trialing.copy_visit_item_excerpts_to_process';\n\n        const result = await models.sequelize.query(\n          'SELECT trialing.copy_visit_item_excerpts_to_process(:trialId, :recordId, :changeSetId, :botName)',\n          {\n            type: models.sequelize.QueryTypes.SELECT,\n            replacements: {\n              trialId: this.id,\n              recordId: recordId,\n              changeSetId,\n              botName\n            },\n            transaction\n          }\n        );\n\n        return _.get(_.first(result), 'copy_visit_item_excerpts_to_process');\n      },\n\n      /**\n       * @param {string} recordId\n       * @param {Sequelize.Transaction} transaction\n       * @returns {*}\n       */\n      async copyWordsToProcess(recordId, {transaction} = {}) {\n        const models = this.$contextModels;\n        const changeSetId = getClsChangeSetId();\n        const botName = 'trialing.copy_words_to_process';\n\n        const result = await models.sequelize.query(\n          'SELECT trialing.copy_words_to_process(:trialId, :recordId, :changeSetId, :botName)',\n          {\n            type: models.sequelize.QueryTypes.SELECT,\n            replacements: {\n              trialId: this.id,\n              recordId: recordId,\n              changeSetId,\n              botName\n            },\n            transaction\n          }\n        );\n\n        return _.get(_.first(result), 'copy_words_to_process');\n      }\n    },\n    hooks: {\n      afterCreate: [\n        queueGenerateTasksJobAfterCreate\n      ]\n    }\n  });\n};",
+      "snippet": "module.exports = function(sequelize, DataTypes) {\n  const attributes = {\n    id: {type: DataTypes.UUID, primaryKey: true},"
+    },
+    {
+      "filename": "app/app/controllers/api/trials.js",
+      "source_id": 0,
+      "id": 1,
+      "line_number": 29,
+      "content": "class Trials extends AbstractApiController {\n  static getApiModel(models) {\n    return apiHelper.generateApiModel(models.Trial.scope('api'), {\n      apiModelName: ApiObjects.TRIAL,\n      description: 'A trial representing an experimental work such as custom structuring trial or agreement studies',\n      attributes: {\n        graduatedAt: {\n          description: 'A timestamp indicating when the Trial was graduated.'\n        },\n        canceledAt: {\n          description: 'A timestamp indicating when the Trial was canceled.'\n        },\n        archivedAt: {\n          description: 'A timestamp indicating when the Trial was archived.'\n        },\n        taskTypes: {\n          description: 'An object with whitelisted task metadata.'\n        },\n        maxRecordCount: {\n          description: 'An integer indicating the maximum number of records to be included in the Trial.'\n        },\n        maxRecordCreatedAt: {\n          description: 'A timestamp indicating the trial to look at records before this date.'\n        },\n        visitConcept: {\n          mapTo: models.Trial.attributes.visitConceptId.fieldName,\n          apiController: ConceptApiController,\n          description: 'A concept for visit type in the record.' +\n            ' If provided, the trial will only generate task for records that' +\n            ' contain this visit concept'\n        },\n        customStructuringConceptGroup: apiHelper.getIncludeableAttribute({\n          mapTo: models.Trial.attributes.customStructuringConceptGroupId.fieldName,\n          apiModelName: ApiObjects.CUSTOM_STRUCTURING_CONCEPT_GROUP,\n          description: 'The custom structuring concept group associated with the Trial.'\n        }),\n        trialRuns: {\n          isArray: true,\n          mapTo: 'TrialRuns',\n          description: 'Array of TrialRun associated with the Trial',\n          apiController: TrialRunApiController,\n          model: models.TrialRun\n        },\n        taskGenerationStatus: {\n          schema: joi.object().allow(null),\n          format: instance => instance.getJobStatus(JobTypes.TRIALING_GENERATE_TASKS)\n        },\n        trialGraduationStatus: {\n          schema: joi.object().allow(null),\n          format: instance => instance.getJobStatus(JobTypes.TRIALING_GRADUATE_TRIAL)\n        },\n        trialCancellationStatus: {\n          schema: joi.object().allow(null),\n          format: instance => instance.getJobStatus(JobTypes.TRIALING_CANCEL_TRIAL)\n        }\n      }\n    });\n  }\n\n  constructor() {\n    super({\n      getApiModel: Trials.getApiModel,\n      endpoint: ApiEndpoints[ApiObjects.TRIAL],\n      endpointAccessPermissions: {\n        list: [Roles.ADMIN, Roles.PROCESSOR],\n        read: [Roles.ADMIN, Roles.PROCESSOR],\n        create: [Roles.ADMIN],\n        update: [Roles.ADMIN],\n        delete: [Roles.ADMIN]\n      },\n      create: {\n        write: {\n          before: onCreateWriteBefore\n        }\n      },\n      childRoutes: [\n        trialApiHelper.cancelTrialByRecord,\n        trialApiHelper.createTrialStandardMentionTasksByRecord,\n        trialApiHelper.createTrialCustomMentionTasksByRecord,\n        trialApiHelper.createGraduatedTrial,\n        trialApiHelper.queueTaskGeneration,\n        trialApiHelper.queueTrialCancellation\n      ]\n    });\n  }\n}",
+      "snippet": "class Trials extends AbstractApiController {\n  static getApiModel(models) {\n    return apiHelper.generateApiModel(models.Trial.scope('api'), {"
+    },
+    {
+      "filename": "app/app/controllers/api/trial_runs.js",
+      "source_id": 0,
+      "id": 2,
+      "line_number": 65,
+      "content": "const search = apiHelper.generateSearchRoute(\n  TrialRuns,\n  async (_keyword, options, models) => {\n    const payload = options.request.payload;\n    const trialRunId = payload.trialRunId;\n    const includeGraduatedTrialRuns = payload.includeGraduatedTrialRuns;\n    const apiModel = options.controllerOptions.apiModel;\n\n    const instances = await models.TrialRun.findAll({\n      where: {\n        $or: (trialRunId ? [{id: trialRunId}] : [])\n          .concat(\n            includeGraduatedTrialRuns ?\n              [{[`$Trial.${models.Trial.attributes.graduatedAt.field}$`]: {$ne: null}}] : []\n          )\n      },\n      include: {model: models.Trial}\n    });\n\n    const formatteds = await TrialRuns.postProcessInstances(instances, apiModel, options.request);\n    return options.getFormattedListModel(formatteds, false, 0);\n  },\n  {\n    description: 'Search trial runs',\n    validate: {\n      payload: {\n        trialRunId: joi.string().guid().allow(null),\n        includeGraduatedTrialRuns: joi.boolean()\n      }\n    }\n  }\n);",
+      "snippet": "const search = apiHelper.generateSearchRoute(\n  TrialRuns,\n  async (_keyword, options, models) => {"
+    },
+    {
+      "filename": "app/frontend/modules/trial_run/actions.ts",
+      "source_id": 1,
+      "id": 7,
+      "line_number": 6,
+      "content": "export const loadCurrentTrialRunAndGraduatedTrialRuns = createApiAction(\n  LOAD_CURRENT_TRIAL_RUN_AND_GRADUATED_TRIAL_RUNS,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],\n  {\n    method: SEARCH,\n    payload: trialRunId => ({\n      trialRunId,\n      includeGraduatedTrialRuns: true\n    }),\n    includes: [['trial']]\n  }\n);",
+      "snippet": "export const loadCurrentTrialRunAndGraduatedTrialRuns = createApiAction(\n  LOAD_CURRENT_TRIAL_RUN_AND_GRADUATED_TRIAL_RUNS,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 16,
+      "line_number": 1251,
+      "content": "export const loadTrialRun = createApiAction(\n  LOAD_TRIAL_RUN,\n  ApiEndpoints[ApiObjects.TRIAL_RUN],\n  {\n    method: READ,\n    id: (id: string) => id,\n    query: (_id: string) => ({include: 'trial'})\n  }\n);",
+      "snippet": "export const loadTrialRun = createApiAction(\n  LOAD_TRIAL_RUN,\n  ApiEndpoints[ApiObjects.TRIAL_RUN],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 22,
+      "line_number": 87,
+      "content": "export const cancelTrial = createApiAction(\n  CANCEL_TRIAL,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-trial-cancelation`,\n  {\n    method: CREATE,\n    id: (trialId: string) => trialId\n  }\n);",
+      "snippet": "export const cancelTrial = createApiAction(\n  CANCEL_TRIAL,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-trial-cancelation`,"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 24,
+      "line_number": 111,
+      "content": "export const createTrial = createApiAction(\n  CREATE_TRIAL,\n  ObjectToEndpoint[ApiObjects.TRIAL],\n  {\n    method: CREATE,\n    payload: (values: Map<string, any>) => values,\n    includes: [['trialRuns'], ['customStructuringConceptGroup']]\n  }\n);",
+      "snippet": "export const createTrial = createApiAction(\n  CREATE_TRIAL,\n  ObjectToEndpoint[ApiObjects.TRIAL],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 26,
+      "line_number": 220,
+      "content": "export const graduateTrial = createApiAction(\n  GRADUATE_TRIAL,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-trial-graduation`,\n  {\n    method: CREATE,\n    id: (trialId: string) => trialId\n  }\n);",
+      "snippet": "export const graduateTrial = createApiAction(\n  GRADUATE_TRIAL,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-trial-graduation`,"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 28,
+      "line_number": 229,
+      "content": "export const loadTrial = createApiAction(\n  LOAD_TRIAL,\n  ObjectToEndpoint[ApiObjects.TRIAL],\n  {\n    method: READ,\n    id: (trialId: string, _include: string) => trialId,\n    query: (_trialId: string, include: string) => include && ({include})\n  }\n);",
+      "snippet": "export const loadTrial = createApiAction(\n  LOAD_TRIAL,\n  ObjectToEndpoint[ApiObjects.TRIAL],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 30,
+      "line_number": 266,
+      "content": "export const setTrialArchivedAt = createApiAction(\n  SET_TRIAL_ARCHIVED_AT,\n  ObjectToEndpoint[ApiObjects.TRIAL],\n  {\n    method: UPDATE,\n    id: (id: string, _archivedAt: Date) => id,\n    payload: (_id: string, archivedAt: Date) => Map({archivedAt})\n  } as any\n);",
+      "snippet": "export const setTrialArchivedAt = createApiAction(\n  SET_TRIAL_ARCHIVED_AT,\n  ObjectToEndpoint[ApiObjects.TRIAL],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 32,
+      "line_number": 276,
+      "content": "export const setTrialRunPicnista = createApiAction(\n  SET_TRIAL_RUN_PICNISTA,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],\n  {\n    method: UPDATE,\n    id: (trialRunId: string, _picnistaUserId: string) => trialRunId,\n    payload: (_trialRunId: string, picnistaUserId: string) => ({\n      picnista: picnistaUserId ? {id: picnistaUserId} : null\n    })\n  }\n);",
+      "snippet": "export const setTrialRunPicnista = createApiAction(\n  SET_TRIAL_RUN_PICNISTA,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 34,
+      "line_number": 288,
+      "content": "const createTrialRun = createApiAction(\n  CREATE_TRIAL_RUN,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],\n  {\n    method: CREATE,\n    query: (_trialId: string) => ({include: 'trial'}),\n    payload: (trialId: string) => Map({trial: {id: trialId}})\n  }\n);",
+      "snippet": "const createTrialRun = createApiAction(\n  CREATE_TRIAL_RUN,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 36,
+      "line_number": 298,
+      "content": "export const setTrialRunForwardCorrectionEnabledDate = createApiAction(\n  SET_TRIAL_RUN_FORWARD_CORRECTION_ENABLED_DATE,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],\n  {\n    method: UPDATE,\n    id: (id: string, _forwardCorrectionEnabledDate: Date) => id,\n    payload: (_id: string, forwardCorrectionEnabledDate: Date) => Map({forwardCorrectionEnabledDate})\n  } as any\n);",
+      "snippet": "export const setTrialRunForwardCorrectionEnabledDate = createApiAction(\n  SET_TRIAL_RUN_FORWARD_CORRECTION_ENABLED_DATE,\n  ObjectToEndpoint[ApiObjects.TRIAL_RUN],"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 38,
+      "line_number": 308,
+      "content": "const queueTrialTaskGeneration = createApiAction(\n  QUEUE_TRIAL_TASK_GENERATION,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-task-generation`,\n  {\n    method: CREATE\n  }\n);",
+      "snippet": "const queueTrialTaskGeneration = createApiAction(\n  QUEUE_TRIAL_TASK_GENERATION,\n  (trialId: string) => `${ObjectToEndpoint[ApiObjects.TRIAL]}/${trialId}/queue-task-generation`,"
+    },
+    {
+      "filename": "app/frontend/modules/global_labelling_field_types/actions.ts",
+      "source_id": 1,
+      "id": 42,
+      "line_number": 338,
+      "content": "export const createGraduatedTrial = createApiAction(\n  CREATE_GRADUATED_TRIAL,\n  () => `${ObjectToEndpoint[ApiObjects.TRIAL]}/create-graduated-trial`,\n  {\n    method: CREATE,\n    query: () => ({\n      include: [\n        'trialRuns',\n        'customStructuringConceptGroup' // required to update the program tree\n      ].join(',')\n    }),\n    payload: (customStructuringConceptGroupId: string) => ({customStructuringConceptGroupId})\n  }\n);",
+      "snippet": "export const createGraduatedTrial = createApiAction(\n  CREATE_GRADUATED_TRIAL,\n  () => `${ObjectToEndpoint[ApiObjects.TRIAL]}/create-graduated-trial`,"
+    }
+  ]
+}

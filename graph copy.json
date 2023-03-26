@@ -15,6 +15,70 @@
       "line_number": 325,
       "content": "class Words extends AbstractApiController {\n  static getApiModel(models) {\n    return apiHelper.generateApiModel(models.Word, {\n      apiModelName: ApiObjects.WORD,\n      description: 'A word in medical record pdf',\n      attributes: {\n        word: {\n          description: 'Text value of the word'\n        },\n        wordChoices: {\n          description: 'Word choices',\n          schema: joi.array().items(joi.string()).allow(null),\n          format: instance => {\n            // TODO: train and use suggester\n            const wordChoices = [instance.word];\n\n            return _.reverse(_.sortBy(wordChoices, 'confidence'));\n          }\n        },\n        confidence: {\n          description: 'A float that indicates the confidence of the recognizer'\n        },\n        boundingBox: {\n          description: 'Bounding box of the word in pdf image. The position are normalized between 0 and 1',\n          schema: joi.object({\n            x: joi.number(),\n            y: joi.number(),\n            width: joi.number(),\n            height: joi.number()\n          }),\n          format: instance => ({\n            x: instance.boundingBoxX,\n            y: instance.boundingBoxY,\n            width: instance.boundingBoxW,\n            height: instance.boundingBoxH\n          }),\n          parse: formatted => {\n            if (_.has(formatted, 'boundingBox')) {\n              return {\n                boundingBoxX: _.get(formatted, 'boundingBox.x'),\n                boundingBoxY: _.get(formatted, 'boundingBox.y'),\n                boundingBoxW: _.get(formatted, 'boundingBox.width'),\n                boundingBoxH: _.get(formatted, 'boundingBox.height')\n              };\n            } else {\n              return null;\n            }\n          }\n        },\n        inlineStyleRanges: {\n          description: \"List of styles for character ranges in the word (eg. [{offset: 0, length: 2, style: 'SUPERSCRIPT'}])\",\n          schema: joi.array().items(joi.object({\n            offset: joi.number().integer(),\n            length: joi.number().integer(),\n            style: joi.string()\n          })).allow(null)\n        },\n        correctedAt: {\n          description: 'A timestamp when the word is corrected.'\n        },\n        isHandwriting: {\n          description: 'A boolean that indicates if the word is handwriting.'\n        },\n        isIllegible: {\n          description: 'A boolean that indicates if the word is illegible.'\n        },\n        record: {\n          mapTo: 'pdfPageId',\n          apiController: PdfPageApiController,\n          description: 'Pdf page associated with word'\n        },\n        person: apiHelper.getIncludeableAttribute({\n          publicApi: true,\n          mapTo: 'userId',\n          apiModelName: ApiObjects.PATIENT,\n          description: apiHelper.descriptions.person(ApiObjects.WORD)\n        }),\n        trialRun: {\n          mapTo: models.Word.attributes.trialRunId.fieldName,\n          description: 'The TrialRun associated with the Word',\n          apiController: TrialRunApiController\n        }\n      }\n    });\n  }\n\n  constructor() {\n    super({\n      apiMaxCount: 2000,\n      getApiModel: Words.getApiModel,\n      endpoint: ApiEndpoints[ApiObjects.WORD],\n      endpointAccessPermissions: _.assign({}, apiHelper.defaultEndpointAccessPermissions, {\n        batchUpdate: [Roles.ADMIN, Roles.PROCESSOR]\n      }),\n      childRoutes: [bulkDelete, correctOcr, search, searchService],\n      sort: {default: '-createdAt'},\n      update: {\n        write: {\n          before: beforeWrite,\n          after: afterWrite\n        }\n      }\n    });\n  }\n}",
       "snippet": "class Words extends AbstractApiController {\n  static getApiModel(models) {\n    return apiHelper.generateApiModel(models.Word, {"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 20,
+      "line_number": 168,
+      "content": "export const loadWords = (pdfPageId: string) => (dispatch, getState) => {\n  const state = getState();\n  const trialRun = getCurrentTrialRun(state);\n  const trialRunId = getIn(trialRun, 'id') || null;\n  const isCustomStructuring = Boolean(\n    getIn(trialRun, ['trial', 'customStructuringConceptGroup', 'id']));\n\n  const _loadWords = createApiAction(\n    LOAD_WORDS,\n    ApiEndpoints[ApiObjects.WORD],\n    {\n      method: SEARCH,\n      payload: () => ({\n        pdfPageId,\n        // if it is custom structuring, we load the standard excerpts\n        trialRunId: isCustomStructuring ? null : trialRunId\n      })\n    }\n  );\n\n  return dispatch(_loadWords());\n};",
+      "snippet": "export const loadWords = (pdfPageId: string) => (dispatch, getState) => {\n  const state = getState();\n  const trialRun = getCurrentTrialRun(state);"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 24,
+      "line_number": 378,
+      "content": "export const createWord = createApiAction(\n  CREATE_WORD,\n  ApiEndpoints[ApiObjects.WORD],\n  {\n    method: CREATE,\n    payload: values => values\n  },\n  (_values, previousWord, nextWord) => Map({optimisticCreate: true, previousWord, nextWord})\n);",
+      "snippet": "export const createWord = createApiAction(\n  CREATE_WORD,\n  ApiEndpoints[ApiObjects.WORD],"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 30,
+      "line_number": 655,
+      "content": "export const correctAllWordsInPagePdf = createApiAction(\n  CORRECT_ALL_WORDS_IN_PAGE_PDF,\n  _pagePdfId => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,\n  {\n    method: CREATE,\n    payload: pagePdfId => ({\n      correctedAt: new Date(),\n      record: {id: pagePdfId}\n    })\n  },\n  pagePdfId => pagePdfId\n);",
+      "snippet": "export const correctAllWordsInPagePdf = createApiAction(\n  CORRECT_ALL_WORDS_IN_PAGE_PDF,\n  _pagePdfId => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 32,
+      "line_number": 672,
+      "content": "export const correctAllWordsInExcerpt = createApiAction(\n  CORRECT_ALL_WORDS_IN_PAGE_EXCERPT,\n  _excerptId => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,\n  {\n    method: CREATE,\n    payload: excerptId => ({\n      correctedAt: new Date(),\n      excerpt: {id: excerptId}\n    })\n  },\n  excerptId => excerptId\n);",
+      "snippet": "export const correctAllWordsInExcerpt = createApiAction(\n  CORRECT_ALL_WORDS_IN_PAGE_EXCERPT,\n  _excerptId => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 34,
+      "line_number": 685,
+      "content": "export const correctAllWordsInSection = createApiAction(\n  CORRECT_ALL_WORDS_IN_SECTION,\n  () => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,\n  {\n    method: CREATE,\n    payload: (sectionId: string) => ({\n      correctedAt: new Date(),\n      section: {id: sectionId}\n    })\n  },\n  (sectionId: string) => Map({sectionId})\n);",
+      "snippet": "export const correctAllWordsInSection = createApiAction(\n  CORRECT_ALL_WORDS_IN_SECTION,\n  () => `${ApiEndpoints[ApiObjects.WORD]}/correct-ocr`,"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 36,
+      "line_number": 859,
+      "content": "export const deleteWord = createApiAction(\n  DELETE_WORD,\n  ApiEndpoints[ApiObjects.WORD],\n  {\n    method: DELETE,\n    id: word => word.get('id')\n  },\n  values => Map({entities: createDeletedEntityUpdater(values)})\n);",
+      "snippet": "export const deleteWord = createApiAction(\n  DELETE_WORD,\n  ApiEndpoints[ApiObjects.WORD],"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 38,
+      "line_number": 873,
+      "content": "export const saveWord = createApiAction(\n  SAVE_WORD,\n  ApiEndpoints[ApiObjects.WORD],\n  {\n    method: UPDATE,\n    id: values => values.get('id'),\n    payload: values => values.delete('id')\n  },\n  values => Map({optimisticUpdate: false})\n);",
+      "snippet": "export const saveWord = createApiAction(\n  SAVE_WORD,\n  ApiEndpoints[ApiObjects.WORD],"
+    },
+    {
+      "filename": "app/frontend/modules/pdf_annotator/actions.ts",
+      "source_id": 1,
+      "id": 40,
+      "line_number": 888,
+      "content": "export const saveWords = createApiAction(\n  SAVE_WORDS,\n  ApiEndpoints[ApiObjects.WORD],\n  {\n    method: BATCH_UPDATE,\n    payload: words => words\n  }\n);",
+      "snippet": "export const saveWords = createApiAction(\n  SAVE_WORDS,\n  ApiEndpoints[ApiObjects.WORD],"
     }
   ]
 }

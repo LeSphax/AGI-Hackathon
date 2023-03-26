@@ -2,11 +2,12 @@ import os
 import openai
 import re
 
-openai.api_key = "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"
+openai.api_key = "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"
+openai.organization = "org-TUxwYZcwSlYKsglx4uq3SdJO"
 
 def call_chatgpt(initialPrompt, prompt):
     response = openai.ChatCompletion.create(
-        model="gpt-4", 
+        model="gpt-3.5-turbo", 
         messages=[
           {"role": "system", "content": initialPrompt}, 
           {"role": "user", "content": prompt}
@@ -124,77 +125,19 @@ if __name__ == "__main__":
         search_snippets += f"{idx}: {entry['filename']}"
         search_snippets += entry['content'] + "\n"
 
-    test_prompt = """You are codeGPT, a code navigation tool. Your output should only contain digits separated by newlines, no explanation, no words.
-Given a codebase with a React frontend, Hapi and NodeJS backend, and Sequelize ORM connected to a PostgreSQL database, analyze the following code snippet:
-
-Here is a code snippet containing the declaration for the *isIllegible* variable we are interested in:
-
-module.exports = function(sequelize, DataTypes) {
-  const attributes = {
-    id: {type: DataTypes.UUID, primaryKey: true},
-    word: DataTypes.STRING,
-    predictedWord: DataTypes.STRING,
-    predictionBot: DataTypes.STRING,
-    confidence: DataTypes.FLOAT,
-    boundingBoxX: {type: DataTypes.FLOAT, min: 0, max: 1},
-    boundingBoxY: {type: DataTypes.FLOAT, min: 0, max: 1},
-    boundingBoxW: {type: DataTypes.FLOAT, min: 0, max: 1},
-    boundingBoxH: {type: DataTypes.FLOAT, min: 0, max: 1},
-    inlineStyleRanges: DataTypes.JSONB,
-    correctedAt: DataTypes.DATE,
-    *isIllegible: {type: DataTypes.BOOLEAN, defaultValue: false},*
-    isHandwriting: {type: DataTypes.BOOLEAN, defaultValue: false}
-  };
-
-  return sequelizeHelper.define(sequelize, 'Word', attributes, {
-    schema: 'ocr',
-    classMethods: {
-      initialize(models) {
-        sequelizeHelper.addRelations(this, models, [
-          ['belongsTo', models.PdfPage],
-          ['belongsTo', models.TrialRun],
-          ['belongsTo', models.User],
-          ['belongsToMany', models.Field, {through: models.FieldWord}]
-        ]);
-      },
-      getWordsByPosition(
-        models,
-        pdfPageId,
-        startX,
-        startY,
-        endX,
-        endY,
-        trialRunId,
-        {transaction, attributes} = {}
-      ) {
-        return models.Word.findAll({
-          attributes,
-          where: {
-            id: models.sequelize.literal(`id IN (
-              SELECT id FROM ocr.words
-              WHERE pdf_page_id = :pdfPageId
-                AND trial_run_id IS NOT DISTINCT FROM :trialRunId
-                AND BOX(
-                  POINT(bounding_box_x, -bounding_box_y),
-                  POINT(bounding_box_x + bounding_box_w, -(bounding_box_y + bounding_box_h))
-                ) && BOX(
-                  POINT(:startX, -(:startY)),
-                  POINT(:endX, -(:endY))
-                )
+    test_prompt = """Here is a code snippet from a Sequelize model file. 
+        I want to find the usages of the isIllegible column in the codebase. So any place reading or writing to that column in the codebase.
    
-    Here are some snippets that match our query "isIllegible":
+    Here are some snippets that match our query "isIllegible". Which of those snippets are usages of the "isIllegible" column?
     """ + search_snippets + """
-    Tell me which snippets contain references to the variable in the first snippet.
-
-    A reference could be:
-    - Any usage of that specific variable. Not another variable with the same name.
      
     Return the index of the snippets that contain references and an explanation of why you picked them.
     
     """
     print(test_prompt)
 
-    call_chatgpt()
+    response = call_chatgpt("You are a code navigation assistant", test_prompt)
+    print(response)
 
     # graph_data = generate_graph(table_name, column_name, root_directory)
 
