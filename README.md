@@ -9,7 +9,7 @@ You'll need the following dependencies to run:
 
 `python main.py` runs the graph UI from a graph.json file
 
-`python graph.py column_name table_name` creates the graph.json file from the picnichealth repository (hardcoded in the file). 
+`python graph.py column_name table_name` creates the graph.json file from the picnichealth repository (hardcoded in the file to run on my machine). 
 
 I didn't really manage to go for a general approach yet so the current approach is very specific to the picnichealth repository.
 
